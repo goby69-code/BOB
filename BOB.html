@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bob — Locomotion Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f3f0;
+    --panel: rgba(255,255,255,0.72);
+    --line: rgba(20,20,18,0.08);
+    --ink:#171613;
+    --ink-soft:#8b8a84;
+    --ink-faint:#b7b6b0;
+    --orange:#ff5a1f;
+    --sans: 'Inter', -apple-system, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:var(--sans);color:var(--ink);}
+  #scene{position:fixed;inset:0;}
+  canvas{display:block;}
+  .vignette{ position:fixed; inset:0; pointer-events:none; z-index:2;
+    background: radial-gradient(ellipse at center, rgba(244,243,240,0) 55%, rgba(244,243,240,0.5) 100%); }
+  .hud{ position:fixed; z-index:10; pointer-events:none; }
+  .hud > *{ pointer-events:auto; }
+  .topbar{ top:0;left:0;right:0; display:flex; align-items:flex-start; justify-content:space-between; padding:24px 28px; }
+  .brand{ display:flex; align-items:center; gap:9px; }
+  .brand .mark{ width:8px;height:8px;background:var(--orange); border-radius:50%; }
+  .brand h1{ font-size:13px; margin:0; font-weight:600; color:var(--ink); }
+  .brand .sub{ font-size:11px; color:var(--ink-soft); margin-left:6px; font-weight:400; }
+  .stat-strip{ display:flex; gap:24px; background:var(--panel); backdrop-filter: blur(14px) saturate(1.4);
+    border:1px solid var(--line); border-radius:12px; padding:12px 20px; }
+  .stat{ text-align:left; min-width:60px; }
+  .stat label{ display:block; font-size:9.5px; letter-spacing:0.06em; color:var(--ink-soft); text-transform:uppercase; margin-bottom:4px; font-weight:500;}
+  .stat .val{ font-family:var(--mono); font-size:15px; font-weight:600; color:var(--ink); font-variant-numeric: tabular-nums; }
+  .stat.hi .val{ color:var(--orange); }
+  .panel{ position:fixed; left:28px; bottom:28px; background:var(--panel); backdrop-filter: blur(14px) saturate(1.4);
+    border:1px solid var(--line); border-radius:14px; padding:20px 22px; width:280px; }
+  .panel h2{ font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-soft); font-weight:600;
+    margin:0 0 16px 0; display:flex; justify-content:space-between; align-items:center; }
+  .panel h2 em{ color:var(--orange); font-style:normal; font-weight:600; }
+  .row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; }
+  .row label{ font-size:11.5px; color:var(--ink-soft); }
+  .row .rv{ font-family:var(--mono); font-size:11px; font-weight:600; color:var(--ink); }
+  input[type=range]{ -webkit-appearance:none; width:100%; height:2px; background:var(--line); border-radius:2px; outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:12px; height:12px; border-radius:50%;
+    background:#fff; cursor:pointer; border:2px solid var(--orange); box-shadow:0 1px 3px rgba(0,0,0,0.15); }
+  .btns{ display:flex; gap:8px; margin-top:16px; }
+  button{ flex:1; font-family:var(--sans); font-size:11.5px; padding:9px 8px; border-radius:8px; border:1px solid var(--line);
+    background:#fff; color:var(--ink); cursor:pointer; font-weight:500; transition:all .15s ease; }
+  button:hover{ border-color:var(--ink-faint); background:#fafaf9; }
+  button.primary{ background:var(--ink); border-color:var(--ink); color:#fff; }
+  button.primary:hover{ background:#000; }
+  .speedbar{ position:fixed; right:28px; bottom:28px; background:var(--panel); backdrop-filter: blur(14px) saturate(1.4);
+    border:1px solid var(--line); border-radius:14px; padding:18px 22px; width:220px; }
+  .speed-readout{ font-family:var(--mono); font-size:24px; font-weight:600; color:var(--ink); line-height:1; margin-bottom:12px; }
+  .speed-readout span{ font-size:12px; color:var(--ink-soft); font-weight:500; margin-left:2px;}
+  .ticks{ display:flex; justify-content:space-between; font-size:9px; color:var(--ink-faint); margin-top:6px; font-family:var(--mono);}
+  .legend{ position:fixed; top:100px; right:28px; z-index:10; background:var(--panel); backdrop-filter: blur(14px) saturate(1.4);
+    border:1px solid var(--line); border-radius:12px; padding:12px 16px; font-size:10.5px; color:var(--ink-soft);
+    text-align:right; line-height:1.6; max-width:190px; }
+  .legend b{ color:var(--ink); font-weight:600; }
+  .legend .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--orange); margin-right:5px;}
+  .footer-note{ position:fixed; bottom:10px; left:0; right:0; text-align:center; font-size:9.5px; color:var(--ink-faint);
+    z-index:5; letter-spacing:0.03em; font-family:var(--mono); }
+  .fitbar{ height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin-top:6px;}
+  .fitbar-fill{ height:100%; background:var(--orange); width:0%; transition:width .2s ease; }
+</style>
+</head>
+<body>
+
+<div id="scene"></div>
+<div class="vignette"></div>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="brand"><div class="mark"></div><h1>Bob<span class="sub">Locomotion Lab — Terrain infini</span></h1></div>
+    <div class="stat-strip">
+      <div class="stat"><label>Génération</label><div class="val" id="s-gen">1</div></div>
+      <div class="stat"><label>Candidat</label><div class="val" id="s-cand">1 / 6</div></div>
+      <div class="stat hi"><label>Meilleur</label><div class="val" id="s-best">0.00</div></div>
+      <div class="stat"><label>Actuel</label><div class="val" id="s-cur">0.00</div></div>
+      <div class="stat"><label>Distance</label><div class="val" id="s-steps">0 m</div></div>
+      <div class="stat"><label>Temps</label><div class="val" id="s-time">0.0s</div></div>
+    </div>
+  </div>
+  <div class="legend"><span class="dot"></span><b>Bob</b> — agent façon Albert<br>réseau 11 → 20 → 4 + capteurs de contact<br>population évolutionnaire (μ+λ)<br>sol plat infini, léger pour le CPU</div>
+
+  <div class="panel">
+    <h2>Apprentissage <em id="learn-state">ACTIF</em></h2>
+    <div class="row"><label>Mutation de base</label><span class="rv" id="rv-mut">0.30</span></div>
+    <input type="range" id="mutRate" min="1" max="100" value="30">
+    <div class="row" style="margin-top:14px;"><label>Progression fitness</label><span class="rv" id="rv-fit">0%</span></div>
+    <div class="fitbar"><div class="fitbar-fill" id="fitbar"></div></div>
+    <div class="btns"><button id="btnPause">Pause</button><button id="btnReset">Réinitialiser</button></div>
+    <div class="btns"><button id="btnSave" class="primary">Sauvegarder</button><button id="btnLoad">Charger</button></div>
+  </div>
+
+  <div class="speedbar">
+    <h2 style="margin-bottom:10px;">Vitesse</h2>
+    <div class="speed-readout" id="speed-readout">1<span>×</span></div>
+    <input type="range" id="speedSlider" min="0" max="1000" value="520">
+    <div class="ticks"><span>1×</span><span>50×</span><span>500×</span><span>3000×</span></div>
+  </div>
+</div>
+<div class="footer-note">GLISSER — orienter · MOLETTE — zoomer</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+  "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import * as CANNON from 'cannon-es';
+
+/* =========================================================================
+   BOB — LOCOMOTION LAB (v3)
+   Terrain infini et parfaitement plat. Bob (façon robot Albert, en orange)
+   est piloté par un petit réseau de neurones + oscillateur de phase (CPG),
+   optimisé par une stratégie évolutionnaire à population (μ+λ)-ES. Rien
+   n'est généré dynamiquement dans le monde : tout le budget CPU va à la
+   simulation physique, pour un apprentissage rapide sans surchauffe.
+   ========================================================================= */
+
+/* --------------------------- RENDU THREE.JS --------------------------- */
+const container = document.getElementById('scene');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf4f3f0);
+scene.fog = new THREE.Fog(0xf4f3f0, 20, 55);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 260);
+camera.position.set(5.5, 4.2, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.07;
+controls.target.set(0, 1, 0);
+controls.maxPolarAngle = Math.PI * 0.485;
+controls.minDistance = 3; controls.maxDistance = 26;
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0xe7e5df, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff6ec, 1.35);
+sun.position.set(7,12,5); sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024); // léger : suffisant pour une scène simple, économise le GPU
+sun.shadow.camera.left=-14; sun.shadow.camera.right=14; sun.shadow.camera.top=14; sun.shadow.camera.bottom=-14;
+sun.shadow.camera.far=40; sun.shadow.bias=-0.0015; sun.shadow.radius=3;
+scene.add(sun);
+scene.add(sun.target); // nécessaire pour que la cible suive Bob (cf. animate())
+const fill = new THREE.DirectionalLight(0xdfe6ff, 0.22);
+fill.position.set(-6,5,-4); scene.add(fill);
+
+const floorMat = new THREE.MeshStandardMaterial({ color:0xfbfaf8, roughness:1.0 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(4000,80), floorMat);
+floor.rotation.x = -Math.PI/2; floor.position.y = -0.01; floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(4000, 800, 0xe2e0da, 0xeceae4);
+grid.material.transparent = true; grid.material.opacity = 0.4;
+scene.add(grid);
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* --------------------------- MONDE PHYSIQUE ---------------------------- */
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+world.broadphase = new CANNON.SAPBroadphase(world);
+world.allowSleep = false;
+world.solver.iterations = 9;
+
+const matGround = new CANNON.Material('ground');
+const matBob = new CANNON.Material('bob');
+world.addContactMaterial(new CANNON.ContactMaterial(matGround, matBob, { friction:0.95, restitution:0.0 }));
+world.addContactMaterial(new CANNON.ContactMaterial(matBob, matBob, { friction:0.2, restitution:0.0 }));
+
+const groundBody = new CANNON.Body({ mass:0, material:matGround, shape:new CANNON.Plane() });
+groundBody.quaternion.setFromEuler(-Math.PI/2,0,0);
+world.addBody(groundBody);
+
+/* ------------------------------- SOL PLAT ------------------------------- */
+// Terrain infini et parfaitement plat (le plan physique CANNON.Plane est déjà
+// infini par nature) — aucune géométrie n'est générée dynamiquement, donc
+// aucun coût CPU/GPU supplémentaire pendant l'entraînement, même à 3000x.
+
+/* ------------------------------- BOB (façon Albert, AI Warehouse) -------- */
+const ORANGE = 0xff5a1f;
+const ORANGE_DEEP = 0xd6440d;
+const CHARCOAL = 0x201e1a;
+const EYE_BLACK = 0x141311;
+
+class Bob{
+  constructor(){
+    this.meshes = {}; this.bodies = {}; this.constraints = [];
+    this._contact = { footL:false, footR:false };
+    this._jointVisuals = []; // petites billes sombres aux articulations (look "ragdoll" façon Albert)
+    this._build();
+  }
+
+  _capsulePart(name, radius, length, mass, color, pos, roughness=0.55){
+    const geo = new THREE.CapsuleGeometry(radius, length, 8, 14);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness, metalness:0.02 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true;
+    scene.add(mesh);
+    const shape = new CANNON.Cylinder(radius, radius, length, 10);
+    const body = new CANNON.Body({ mass, material:matBob, linearDamping:0.3, angularDamping:0.55 });
+    const quat = new CANNON.Quaternion(); quat.setFromEuler(Math.PI/2,0,0);
+    body.addShape(shape, new CANNON.Vec3(), quat);
+    body.position.set(pos.x,pos.y,pos.z);
+    world.addBody(body);
+    this.meshes[name]=mesh; this.bodies[name]=body;
+    return body;
+  }
+
+  _boxPart(name, w,h,d, mass, color, pos, roughness=0.55){
+    const geo = new RoundedBoxGeometry(w,h,d, 3, Math.min(0.06,w*0.28));
+    const mat = new THREE.MeshStandardMaterial({ color, roughness, metalness:0.02 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true;
+    scene.add(mesh);
+    const body = new CANNON.Body({ mass, material:matBob, linearDamping:0.3, angularDamping:0.55 });
+    body.addShape(new CANNON.Box(new CANNON.Vec3(w/2,h/2,d/2)));
+    body.position.set(pos.x,pos.y,pos.z);
+    world.addBody(body);
+    this.meshes[name]=mesh; this.bodies[name]=body;
+    return body;
+  }
+
+  _spherePart(name, radius, mass, color, pos, roughness=0.55){
+    const geo = new THREE.SphereGeometry(radius, 20, 16);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness, metalness:0.02 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true;
+    scene.add(mesh);
+    const body = new CANNON.Body({ mass, material:matBob, linearDamping:0.3, angularDamping:0.55 });
+    body.addShape(new CANNON.Sphere(radius));
+    body.position.set(pos.x,pos.y,pos.z);
+    world.addBody(body);
+    this.meshes[name]=mesh; this.bodies[name]=body;
+    return body;
+  }
+
+  // petite bille sombre décorative, visuellement "clipée" sur une articulation
+  _jointBall(radius=0.075){
+    const geo = new THREE.SphereGeometry(radius, 14, 12);
+    const mat = new THREE.MeshStandardMaterial({ color:CHARCOAL, roughness:0.5, metalness:0.1 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true;
+    scene.add(mesh);
+    this._jointVisuals.push(mesh);
+    return mesh;
+  }
+
+  _build(){
+    const y0 = 1.65;
+    // Torse arrondi, plaque orange façon robot (silhouette ronde, pas cubique)
+    this._boxPart('torso', 0.48,0.64,0.32, 6.5, ORANGE, {x:0,y:y0,z:0}, 0.5);
+    // Tête SPHÉRIQUE façon Albert, avec deux grands yeux ronds noirs
+    this._spherePart('head', 0.22, 1.1, ORANGE, {x:0,y:y0+0.58,z:0}, 0.5);
+    // Bras robotiques tout en capsules arrondies
+    this._capsulePart('armL', 0.09,0.38, 0.85, ORANGE_DEEP, {x:-0.4,y:y0+0.02,z:0});
+    this._capsulePart('armR', 0.09,0.38, 0.85, ORANGE_DEEP, {x:0.4,y:y0+0.02,z:0});
+    this._spherePart('handL', 0.1, 0.3, CHARCOAL, {x:-0.4,y:y0-0.27,z:0});
+    this._spherePart('handR', 0.1, 0.3, CHARCOAL, {x:0.4,y:y0-0.27,z:0});
+    // Jambes en capsules rondes (silhouette ragdoll typique, plus organique que des boîtes)
+    this._capsulePart('thighL', 0.14,0.32, 2.2, ORANGE, {x:-0.15,y:y0-0.53,z:0});
+    this._capsulePart('thighR', 0.14,0.32, 2.2, ORANGE, {x:0.15,y:y0-0.53,z:0});
+    this._capsulePart('shinL', 0.115,0.34, 1.5, ORANGE_DEEP, {x:-0.15,y:y0-1.02,z:0});
+    this._capsulePart('shinR', 0.115,0.34, 1.5, ORANGE_DEEP, {x:0.15,y:y0-1.02,z:0});
+    this._boxPart('footL', 0.19,0.11,0.34, 0.55, CHARCOAL, {x:-0.15,y:y0-1.32,z:0.06});
+    this._boxPart('footR', 0.19,0.11,0.34, 0.55, CHARCOAL, {x:0.15,y:y0-1.32,z:0.06});
+
+    // Yeux (décor, suivent la tête) — deux billes noires bombées, signature "Albert"
+    const eyeGeo = new THREE.SphereGeometry(0.052, 12, 10);
+    const eyeMat = new THREE.MeshStandardMaterial({ color:EYE_BLACK, roughness:0.25, metalness:0.1 });
+    this.eyeL = new THREE.Mesh(eyeGeo, eyeMat); scene.add(this.eyeL);
+    this.eyeR = new THREE.Mesh(eyeGeo, eyeMat); scene.add(this.eyeR);
+
+    this.hipL  = this._hinge('torso','thighL', new CANNON.Vec3(-0.15,-0.33,0), new CANNON.Vec3(0,0.17,0));
+    this.hipR  = this._hinge('torso','thighR', new CANNON.Vec3(0.15,-0.33,0), new CANNON.Vec3(0,0.17,0));
+    this.kneeL = this._hinge('thighL','shinL', new CANNON.Vec3(0,-0.17,0), new CANNON.Vec3(0,0.18,0));
+    this.kneeR = this._hinge('thighR','shinR', new CANNON.Vec3(0,-0.17,0), new CANNON.Vec3(0,0.18,0));
+    this._hinge('shinL','footL', new CANNON.Vec3(0,-0.18,-0.06), new CANNON.Vec3(0,0.05,0), false);
+    this._hinge('shinR','footR', new CANNON.Vec3(0,-0.18,-0.06), new CANNON.Vec3(0,0.05,0), false);
+    this._hinge('torso','head', new CANNON.Vec3(0,0.33,0), new CANNON.Vec3(0,-0.16,0), false);
+    this._hinge('torso','armL', new CANNON.Vec3(-0.28,0.26,0), new CANNON.Vec3(0,0.19,0), false);
+    this._hinge('torso','armR', new CANNON.Vec3(0.28,0.26,0), new CANNON.Vec3(0,0.19,0), false);
+    this._hinge('armL','handL', new CANNON.Vec3(0,-0.19,0), new CANNON.Vec3(0,0,0), false);
+    this._hinge('armR','handR', new CANNON.Vec3(0,-0.19,0), new CANNON.Vec3(0,0,0), false);
+
+    // billes d'articulation décoratives (hanches, épaules, genoux) — le détail
+    // qui donne cette lecture "ragdoll de jeu" reconnaissable
+    this._jointHip_L = this._jointBall(0.09); this._jointHip_R = this._jointBall(0.09);
+    this._jointShoulder_L = this._jointBall(0.08); this._jointShoulder_R = this._jointBall(0.08);
+    this._jointKnee_L = this._jointBall(0.075); this._jointKnee_R = this._jointBall(0.075);
+
+    this.motors = [this.hipL, this.hipR, this.kneeL, this.kneeR];
+    Object.values(this.bodies).forEach(b=>{ b.collisionFilterGroup=2; b.collisionFilterMask=1; });
+
+    world.addEventListener('beginContact', (e)=>{
+      if(e.bodyA===this.bodies.footL||e.bodyB===this.bodies.footL) this._contact.footL=true;
+      if(e.bodyA===this.bodies.footR||e.bodyB===this.bodies.footR) this._contact.footR=true;
+    });
+    world.addEventListener('endContact', (e)=>{
+      if(e.bodyA===this.bodies.footL||e.bodyB===this.bodies.footL) this._contact.footL=false;
+      if(e.bodyA===this.bodies.footR||e.bodyB===this.bodies.footR) this._contact.footR=false;
+    });
+  }
+
+  _hinge(a,b,pivotA,pivotB,motorized=true){
+    const c = new CANNON.HingeConstraint(this.bodies[a], this.bodies[b], {
+      pivotA, pivotB, axisA:new CANNON.Vec3(1,0,0), axisB:new CANNON.Vec3(1,0,0)
+    });
+    if(motorized){ c.enableMotor(); c.setMotorMaxForce(70); }
+    world.addConstraint(c);
+    this.constraints.push(c);
+    return c;
+  }
+
+  reset(startPos){
+    const y0 = 1.65;
+    const layout = {
+      torso:[0,y0,0], head:[0,y0+0.58,0], armL:[-0.4,y0+0.02,0], armR:[0.4,y0+0.02,0],
+      handL:[-0.4,y0-0.27,0], handR:[0.4,y0-0.27,0],
+      thighL:[-0.15,y0-0.53,0], thighR:[0.15,y0-0.53,0], shinL:[-0.15,y0-1.02,0], shinR:[0.15,y0-1.02,0],
+      footL:[-0.15,y0-1.32,0.06], footR:[0.15,y0-1.32,0.06]
+    };
+    for(const k in layout){
+      const b = this.bodies[k];
+      b.position.set(layout[k][0]+startPos.x, layout[k][1]+startPos.y, layout[k][2]+startPos.z);
+      b.velocity.set(0,0,0); b.angularVelocity.set(0,0,0); b.quaternion.set(0,0,0,1);
+    }
+    this._contact.footL=false; this._contact.footR=false;
+  }
+
+  syncMeshes(){
+    for(const k in this.meshes){
+      this.meshes[k].position.copy(this.bodies[k].position);
+      this.meshes[k].quaternion.copy(this.bodies[k].quaternion);
+    }
+    // yeux plaqués sur le devant de la tête, écartés de part et d'autre
+    const headB = this.bodies.head;
+    const placeOnHead = (mesh, lx)=>{
+      const local = new CANNON.Vec3(lx, 0.02, 0.185);
+      const world = headB.position.vadd(headB.quaternion.vmult(local));
+      mesh.position.copy(world);
+    };
+    placeOnHead(this.eyeL, -0.09);
+    placeOnHead(this.eyeR, 0.09);
+
+    // billes d'articulation : positionnées au point pivot de chaque hinge,
+    // dans le repère du corps parent (lecture "ragdoll" façon Albert)
+    const placeJoint = (mesh, bodyName, localPivot)=>{
+      const b = this.bodies[bodyName];
+      mesh.position.copy(b.position.vadd(b.quaternion.vmult(localPivot)));
+    };
+    placeJoint(this._jointHip_L, 'torso', new CANNON.Vec3(-0.15,-0.33,0));
+    placeJoint(this._jointHip_R, 'torso', new CANNON.Vec3(0.15,-0.33,0));
+    placeJoint(this._jointShoulder_L, 'torso', new CANNON.Vec3(-0.28,0.26,0));
+    placeJoint(this._jointShoulder_R, 'torso', new CANNON.Vec3(0.28,0.26,0));
+    placeJoint(this._jointKnee_L, 'thighL', new CANNON.Vec3(0,-0.17,0));
+    placeJoint(this._jointKnee_R, 'thighR', new CANNON.Vec3(0,-0.17,0));
+  }
+
+  getObservation(phase){
+    const torso = this.bodies.torso;
+    const worldUp = torso.quaternion.vmult(new CANNON.Vec3(0,1,0));
+    return [
+      this.hipL.angle||0, this.hipR.angle||0, this.kneeL.angle||0, this.kneeR.angle||0,
+      worldUp.y,
+      THREE.MathUtils.clamp(torso.velocity.x,-4,4)/4,
+      Math.sin(phase), Math.cos(phase),
+      THREE.MathUtils.clamp(torso.angularVelocity.z,-6,6)/6,
+      this._contact.footL ? 1 : -1,
+      this._contact.footR ? 1 : -1
+    ];
+  }
+
+  applyActions(actions){
+    const speeds = actions.map(a=>a*4.6);
+    this.hipL.setMotorSpeed(speeds[0]); this.hipR.setMotorSpeed(speeds[1]);
+    this.kneeL.setMotorSpeed(speeds[2]); this.kneeR.setMotorSpeed(speeds[3]);
+  }
+
+  isFallen(){
+    const worldUp = this.bodies.torso.quaternion.vmult(new CANNON.Vec3(0,1,0));
+    return worldUp.y < 0.35 || this.bodies.torso.position.y < -1.0;
+  }
+}
+
+/* --------------------------- RÉSEAU DE NEURONES ------------------------- */
+class NeuralNet{
+  constructor(nIn=11, nHid=20, nOut=4){
+    this.nIn=nIn; this.nHid=nHid; this.nOut=nOut;
+    this.w1=randMat(nHid,nIn); this.b1=randVec(nHid);
+    this.w2=randMat(nOut,nHid); this.b2=randVec(nOut);
+  }
+  clone(){
+    const n = new NeuralNet(this.nIn,this.nHid,this.nOut);
+    n.w1=this.w1.map(r=>r.slice()); n.b1=this.b1.slice();
+    n.w2=this.w2.map(r=>r.slice()); n.b2=this.b2.slice();
+    return n;
+  }
+  mutate(rate){
+    const jitter = v => v + (Math.random()*2-1)*rate;
+    this.w1=this.w1.map(r=>r.map(jitter)); this.b1=this.b1.map(jitter);
+    this.w2=this.w2.map(r=>r.map(jitter)); this.b2=this.b2.map(jitter);
+  }
+  forward(x){
+    const h = this.w1.map((row,i)=>Math.tanh(dot(row,x)+this.b1[i]));
+    return this.w2.map((row,i)=>Math.tanh(dot(row,h)+this.b2[i]));
+  }
+  toJSON(){ return JSON.stringify({w1:this.w1,b1:this.b1,w2:this.w2,b2:this.b2}); }
+  static fromJSON(str){
+    const d = JSON.parse(str);
+    const n = new NeuralNet(d.w1[0].length, d.w1.length, d.w2.length);
+    n.w1=d.w1; n.b1=d.b1; n.w2=d.w2; n.b2=d.b2;
+    return n;
+  }
+}
+function randMat(r,c){ return Array.from({length:r},()=>randVec(c)); }
+function randVec(n){ return Array.from({length:n},()=>(Math.random()*2-1)*0.6); }
+function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+
+/* ------------------------------ ÉTAT GLOBAL ----------------------------- */
+const POP_SIZE = 10;
+let bob = new Bob();
+let population = Array.from({length:POP_SIZE}, ()=>new NeuralNet());
+let candidateIdx = 0;
+let generationFitness = [];
+let bestBrainEver = population[0].clone();
+let bestScoreEver = -Infinity;
+let baseMutation = 0.30;
+let generation = 1;
+let episodeTime = 0, phase = 0;
+let paused = false, speedMult = 1;
+const FIXED_DT = 1/60;
+const MAX_EPISODE_TIME = 8; // sol plat => marcher droit s'apprend vite, épisodes courts pour enchaîner les générations
+const GAIT_PERIOD = 1.05;
+
+let stepsClimbed = 0, maxXReached = 0;
+let uprightTimeAccum = 0;   // récompense continue : temps passé "debout" plutôt qu'effondré
+let fellEarly = false;      // pénalise une chute avant la fin naturelle de l'épisode
+
+function startEpisode(){
+  episodeTime = 0; phase = 0; stepsClimbed = 0; maxXReached = 0;
+  uprightTimeAccum = 0; fellEarly = false;
+  bob.reset({x:0, y:0, z:0});
+}
+startEpisode();
+
+/* ---------------------- ÉVALUATION / ÉVOLUTION (μ+λ) --------------------- */
+// Fitness façonnée pour éviter le piège classique de l'évolution : un agent
+// qui "plonge" en avant une seule fois obtient un peu de distance mais reste
+// très peu de temps debout et est ici pénalisé, au profit d'une vraie marche
+// soutenue (distance + temps passé stable + bonus final de posture).
+function evaluateFitness(){
+  const torsoX = bob.bodies.torso.position.x;
+  const upright = Math.max(0, bob.bodies.torso.quaternion.vmult(new CANNON.Vec3(0,1,0)).y);
+  const smooth = -Math.abs(bob.bodies.torso.angularVelocity.z) * 0.05;
+  const fallPenalty = fellEarly ? 3 : 0;
+  return torsoX * 10 + uprightTimeAccum * 1.4 + upright * 2 + smooth - fallPenalty;
+}
+
+function nextGeneration(){
+  const ranked = population.map((brain,i)=>({brain, fit:generationFitness[i]})).sort((a,b)=>b.fit-a.fit);
+  const champion = ranked[0];
+  if(champion.fit > bestScoreEver){ bestScoreEver = champion.fit; bestBrainEver = champion.brain.clone(); }
+  // 3 élites conservées telles quelles => jamais de régression, plus de
+  // diversité de "bons gènes" à recombiner que dans un simple (1+1)-ES.
+  const elites = [ranked[0].brain, ranked[1].brain, ranked[2].brain];
+  const decay = Math.max(0.12, Math.pow(0.96, generation));
+  const rate = baseMutation * decay;
+  const nextPop = elites.map(e=>e.clone());
+  while(nextPop.length < POP_SIZE){
+    const parent = elites[Math.floor(Math.random()*elites.length)].clone();
+    parent.mutate(rate);
+    nextPop.push(parent);
+  }
+  population = nextPop;
+  generation++; candidateIdx = 0; generationFitness = [];
+}
+
+function endEpisode(){
+  generationFitness[candidateIdx] = evaluateFitness();
+  candidateIdx++;
+  if(candidateIdx >= POP_SIZE) nextGeneration();
+  startEpisode();
+}
+
+/* --------------------------------- UI ----------------------------------- */
+const elGen=document.getElementById('s-gen'), elCand=document.getElementById('s-cand'),
+      elBest=document.getElementById('s-best'), elCur=document.getElementById('s-cur'),
+      elSteps=document.getElementById('s-steps'), elTime=document.getElementById('s-time'),
+      elLearnState=document.getElementById('learn-state'), elMutVal=document.getElementById('rv-mut'),
+      elFitVal=document.getElementById('rv-fit'), elFitBar=document.getElementById('fitbar'),
+      elSpeedReadout=document.getElementById('speed-readout');
+
+document.getElementById('mutRate').addEventListener('input', e=>{
+  baseMutation = e.target.value/100; elMutVal.textContent = baseMutation.toFixed(2);
+});
+document.getElementById('btnPause').addEventListener('click', e=>{
+  paused = !paused;
+  e.target.textContent = paused ? 'Reprendre' : 'Pause';
+  elLearnState.textContent = paused ? 'PAUSE' : 'ACTIF';
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  population = Array.from({length:POP_SIZE}, ()=>new NeuralNet());
+  bestBrainEver = population[0].clone(); bestScoreEver = -Infinity;
+  generation = 1; candidateIdx = 0; generationFitness = [];
+  startEpisode();
+});
+document.getElementById('btnSave').addEventListener('click', ()=>{
+  localStorage.setItem('bob_best_brain', bestBrainEver.toJSON());
+  localStorage.setItem('bob_best_score', String(bestScoreEver));
+  localStorage.setItem('bob_generation', String(generation));
+  flashButton('btnSave','Sauvegardé');
+});
+document.getElementById('btnLoad').addEventListener('click', ()=>{
+  const saved = localStorage.getItem('bob_best_brain');
+  if(saved){
+    bestBrainEver = NeuralNet.fromJSON(saved);
+    population = Array.from({length:POP_SIZE}, ()=>bestBrainEver.clone());
+    population.forEach((b,i)=>{ if(i>0) b.mutate(0.08); });
+    bestScoreEver = parseFloat(localStorage.getItem('bob_best_score')||'-Infinity');
+    generation = parseInt(localStorage.getItem('bob_generation')||'1');
+    candidateIdx = 0; generationFitness = [];
+    startEpisode();
+    flashButton('btnLoad','Chargé');
+  } else flashButton('btnLoad','Aucune sauvegarde');
+});
+function flashButton(id,txt){
+  const b=document.getElementById(id); const o=b.textContent;
+  b.textContent=txt; setTimeout(()=>b.textContent=o,1200);
+}
+const speedSlider = document.getElementById('speedSlider');
+function applySpeedFromSlider(v){
+  speedMult = v===0 ? 1 : Math.max(1, Math.round(Math.pow(v/1000,2.2)*3000));
+  elSpeedReadout.innerHTML = speedMult+'<span>×</span>';
+}
+speedSlider.addEventListener('input', e=> applySpeedFromSlider(parseInt(e.target.value)));
+applySpeedFromSlider(parseInt(speedSlider.value)); // vitesse de départ élevée pour un apprentissage rapide
+
+/* --------------------------------- BOUCLE -------------------------------- */
+let lastT = performance.now();
+let bestFitnessSoFarThisRun = 0.0001;
+
+function physicsStep(){
+  phase += FIXED_DT * (2*Math.PI/GAIT_PERIOD);
+  const obs = bob.getObservation(phase);
+  const actions = population[candidateIdx].forward(obs);
+  bob.applyActions(actions);
+  world.step(FIXED_DT);
+  episodeTime += FIXED_DT;
+
+  const upright = bob.bodies.torso.quaternion.vmult(new CANNON.Vec3(0,1,0)).y;
+  if(upright > 0.6) uprightTimeAccum += FIXED_DT;
+
+  const x = bob.bodies.torso.position.x;
+  if(x > maxXReached){ maxXReached = x; stepsClimbed = Math.round(maxXReached); }
+
+  if(bob.isFallen()){
+    fellEarly = true;
+    endEpisode();
+  } else if(episodeTime > MAX_EPISODE_TIME){
+    endEpisode();
+  }
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  let dtMs = now-lastT; lastT = now;
+  if(dtMs>250) dtMs=250;
+
+  if(!paused){
+    const targetSteps = Math.max(1, Math.round((dtMs/1000/FIXED_DT)*speedMult));
+    // Plafond volontairement modeste : le sol est plat et Bob ne compte que
+    // 10 corps rigides, donc chaque pas physique est très bon marché — pas
+    // besoin de milliers de pas/frame pour apprendre vite sans saturer le CPU.
+    const cappedSteps = Math.min(targetSteps, 1800);
+    for(let i=0;i<cappedSteps;i++) physicsStep();
+  }
+
+  bob.syncMeshes();
+  const tx = bob.bodies.torso.position.x;
+  const ty = bob.bodies.torso.position.y;
+  // La lumière (et son ombre) suit Bob : le terrain est infini, la zone
+  // d'ombre calculée doit rester centrée sur lui plutôt que sur l'origine.
+  sun.position.set(tx+7, 12, 5);
+  sun.target.position.set(tx, 0, 0);
+  fill.position.set(tx-6, 5, -4);
+  floor.position.x = tx; grid.position.x = tx;
+  controls.target.lerp(new THREE.Vector3(tx, ty + 0.4, 0), 0.08);
+  camera.position.lerp(new THREE.Vector3(tx-3.0, ty + 2.6, 7.2), 0.04);
+  controls.update();
+  renderer.render(scene, camera);
+
+  const curFit = evaluateFitness();
+  bestFitnessSoFarThisRun = Math.max(bestFitnessSoFarThisRun, bestScoreEver, 1);
+  elGen.textContent = generation;
+  elCand.textContent = (candidateIdx+1)+' / '+POP_SIZE;
+  elBest.textContent = (bestScoreEver===-Infinity?0:bestScoreEver).toFixed(2);
+  elCur.textContent = curFit.toFixed(2);
+  elSteps.textContent = stepsClimbed+' m';
+  elTime.textContent = episodeTime.toFixed(1)+'s';
+  const pct = Math.max(0, Math.min(100, (curFit/bestFitnessSoFarThisRun)*100));
+  elFitBar.style.width = pct.toFixed(0)+'%';
+  elFitVal.textContent = pct.toFixed(0)+'%';
+}
+animate();
+
+(function autoload(){
+  const saved = localStorage.getItem('bob_best_brain');
+  if(saved){
+    try{
+      bestBrainEver = NeuralNet.fromJSON(saved);
+      population = Array.from({length:POP_SIZE}, ()=>bestBrainEver.clone());
+      population.forEach((b,i)=>{ if(i>0) b.mutate(0.08); });
+      bestScoreEver = parseFloat(localStorage.getItem('bob_best_score')||'-Infinity');
+      generation = parseInt(localStorage.getItem('bob_generation')||'1');
+      startEpisode();
+    }catch(e){ console.warn('Sauvegarde illisible, démarrage neuf.'); }
+  }
+})();
+</script>
+</body>
+</html>
